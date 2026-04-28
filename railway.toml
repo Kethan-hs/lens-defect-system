@@ -3,4 +3,5 @@ builder = "DOCKERFILE"
 dockerfilePath = "docker/Dockerfile.backend"
 
 [deploy]
+startCommand = "python main.py"
 restartPolicyType = "ON_FAILURE"
