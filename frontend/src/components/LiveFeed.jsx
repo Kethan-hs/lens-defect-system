@@ -45,6 +45,7 @@ const LiveFeed = () => {
         addLog("Camera access granted!");
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(e => console.error("Play error:", e));
         }
       } catch (err) {
         addLog("Camera error: " + err.message);
@@ -170,9 +171,9 @@ const LiveFeed = () => {
         <div className="flex-1 min-h-0 min-w-0">
           <div className="relative w-full bg-black rounded-lg overflow-hidden"
                style={{ aspectRatio: '16/9', minHeight: '200px' }}>
-            {/* Hidden video and canvas for capturing */}
-            <video ref={videoRef} autoPlay playsInline muted className="hidden" />
-            <canvas ref={canvasRef} className="hidden" />
+            {/* Hidden video and canvas for capturing (must not use display: none or browser may suspend decoding) */}
+            <video ref={videoRef} autoPlay playsInline muted className="opacity-0 absolute pointer-events-none w-[1px] h-[1px]" />
+            <canvas ref={canvasRef} className="opacity-0 absolute pointer-events-none w-[1px] h-[1px]" />
 
             {frameSrc ? (
               <img
