@@ -25,8 +25,14 @@ export const exportPDF = () => {
 };
 
 export const createStreamSocket = (onFrame, onMetadata) => {
-  const wsUrl = API_URL.replace(/^http/, 'ws').replace('https://', 'wss://').replace('http://', 'ws://') + '/ws/stream';
-  const socket = new WebSocket(wsUrl);
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+  // Proper protocol conversion
+  const WS_URL = API_URL
+    .replace(/^https:/, 'wss:')
+    .replace(/^http:/, 'ws:');
+
+  const socket = new WebSocket(`${WS_URL}/ws/stream`);
 
   socket.binaryType = 'blob';
 
@@ -39,9 +45,12 @@ export const createStreamSocket = (onFrame, onMetadata) => {
         console.error("Error parsing metadata", e);
       }
     } else {
-      // It's binary data (the image frame)
       try {
-        const blob = event.data instanceof Blob ? event.data : new Blob([event.data], { type: 'image/jpeg' });
+        const blob =
+          event.data instanceof Blob
+            ? event.data
+            : new Blob([event.data], { type: 'image/jpeg' });
+
         const url = URL.createObjectURL(blob);
         onFrame(url);
       } catch (e) {
