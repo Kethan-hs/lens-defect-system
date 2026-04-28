@@ -10,6 +10,8 @@ WORKDIR /app
 
 # Copy and install requirements first (layer cache)
 COPY backend/requirements.txt .
+# Install CPU-only PyTorch first to save ~2GB of CUDA libraries
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend source code
