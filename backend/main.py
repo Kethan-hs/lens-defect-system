@@ -11,11 +11,15 @@ app = FastAPI(title="Optical Lens Defect Detection API")
 # CORS for React frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, you should replace this with your Vercel URL
+    allow_origins=[
+        "https://lens-defect-system.vercel.app",  # your Vercel URL
+        "http://localhost:3000",                    # keep for local dev
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 app.include_router(stream.router)
 app.include_router(inspections.router)
