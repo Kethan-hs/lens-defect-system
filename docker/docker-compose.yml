@@ -1,0 +1,38 @@
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../backend/models:/app/models
+      - backend-db:/app/data
+    environment:
+      - CONFIDENCE_THRESHOLD=0.3
+      - MODEL_PATH=models/best.pt
+      - DATABASE_URL=sqlite:///./data/lens_inspections.db
+    networks:
+      - lens-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+      args:
+        VITE_API_URL: http://localhost:8000
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - lens-network
+    restart: unless-stopped
+
+volumes:
+  backend-db:
+
+networks:
+  lens-network:
+    driver: bridge

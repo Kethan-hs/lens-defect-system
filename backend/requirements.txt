@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pydantic
+pydantic-settings
+opencv-python-headless
+numpy
+ultralytics
+reportlab
