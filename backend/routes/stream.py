@@ -77,27 +77,28 @@ class PipelineState:
 
 # ── Synchronous pipeline (runs in thread pool) ────────────────────────────────
 def _run_pipeline(frame_bytes: bytes, state: PipelineState):
-    nparr = np.frombuffer(frame_bytes, np.uint8)
-    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    if frame is None:
-        return None, None, "No Lens", []
+    try:
+        nparr = np.frombuffer(frame_bytes, np.uint8)
+        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if frame is None:
+            return None, None, "No Lens", []
 
-    now = time.monotonic()
+        now = time.monotonic()
 
-    # Stage 1 — lens segmentation (throttled)
-    if now - state.last_seg_time >= SEG_INTERVAL:
-        found, roi, bbox, mask, poly = segment_lens(frame)
-        state.last_seg_time  = now
-        state.is_lens_found  = found
-        state.cached_roi     = roi
-        state.cached_bbox    = bbox
-        state.cached_mask    = mask
-        state.cached_polygon = poly
+        # Stage 1 — lens segmentation (throttled)
+        if now - state.last_seg_time >= SEG_INTERVAL:
+            found, roi, bbox, mask, poly = segment_lens(frame)
+            state.last_seg_time  = now
+            state.is_lens_found  = found
+            state.cached_roi     = roi
+            state.cached_bbox    = bbox
+            state.cached_mask    = mask
+            state.cached_polygon = poly
 
-    # Stage 2 — defect detection (every frame)
-    detections = []
-    if state.is_lens_found and state.cached_roi is not None:
-        detections = detect_defects(state.cached_roi)
+        # Stage 2 — defect detection (every frame)
+        detections = []
+        if state.is_lens_found and state.cached_roi is not None:
+            detections = detect_defects(state.cached_roi)
 
     # Stage 3 — annotate + decide
     annotated, pass_fail, mapped = make_decision_and_annotate(
@@ -133,6 +134,11 @@ def _run_pipeline(frame_bytes: bytes, state: PipelineState):
     })
 
     return buf.tobytes(), metadata, pass_fail, mapped
+    except Exception as e:
+        print(f"[Pipeline] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return None, None, "Error", []
 
 
 # ── Blocking DB write (called via asyncio.to_thread) ─────────────────────────
@@ -192,7 +198,7 @@ async def websocket_endpoint(websocket: WebSocket):
         except Exception:
             pass
 
-    # ── Process loop ──────────────────────────────────────────────────────────
+# ── Process loop ──────────────────────────────────────────────────────────
     async def process_loop():
         nonlocal latest_frame, should_run
         try:
@@ -210,15 +216,23 @@ async def websocket_endpoint(websocket: WebSocket):
                     continue
 
                 # Run blocking pipeline in thread pool
-                out_bytes, metadata, pass_fail, dets = await asyncio.to_thread(
-                    _run_pipeline, current, state
-                )
+                try:
+                    out_bytes, metadata, pass_fail, dets = await asyncio.to_thread(
+                        _run_pipeline, current, state
+                    )
+                except Exception as e:
+                    print(f"[WS] Pipeline error: {e}")
+                    continue
 
                 if out_bytes is None or not should_run:
                     continue
 
-                await websocket.send_text(json.dumps(metadata))
-                await websocket.send_bytes(out_bytes)
+                try:
+                    await websocket.send_text(json.dumps(metadata))
+                    await websocket.send_bytes(out_bytes)
+                except Exception as e:
+                    print(f"[WS] Send error: {e}")
+                    continue
 
                 # Throttled DB write (also in thread pool — non-blocking)
                 now = time.monotonic()
