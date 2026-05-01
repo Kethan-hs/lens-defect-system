@@ -1,0 +1,6 @@
+names:
+  0: lens
+nc: 1
+path: C:\Users\Acer\OneDrive\Desktop\Kethan\lens-defect-system-fixed\data\lens_combined\synthetic
+train: train/images
+val: valid/images

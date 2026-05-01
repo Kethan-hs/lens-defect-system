@@ -1,103 +1,98 @@
 # Optical Lens Defect Detection System
 
-The Optical Lens Defect Detection System is a real-time, computer vision-powered QA manufacturing tool designed to identify and log surface defects on optical lenses. The application captures a live camera feed, uses classical computer vision to isolate the lens region, and then runs a trained YOLOv8m-OBB (Oriented Bounding Box) machine learning model on that cropped region to detect four specific defect classes: bubble, crack, dots, and scratch. The results, including annotated frames and Pass/Fail decisions, are streamed to a modern React dashboard while historical data is logged to a SQLite database for trend analysis and PDF/CSV reporting.
+Real-time QA system: live camera → lens segmentation → OBB defect detection → Pass/Fail decision.
 
 ## Architecture
 
-```text
-Live Camera Feed
-      │
-      ▼
-┌─────────────────────────────┐
-│  Step 1: Lens Isolation     │  ← Classical CV (HoughCircles)
-│  Detect & crop lens ROI     │
-└────────────┬────────────────┘
-             │ (only if lens detected)
-             ▼
-┌─────────────────────────────┐
-│  Step 2: Defect Detection   │  ← YOLOv8m-OBB inference
-│  Classify: bubble/crack/    │
-│  dots/scratch               │
-└────────────┬────────────────┘
-             │
-             ▼
-┌─────────────────────────────┐
-│  Step 3: Decision + Output  │  ← Pass/Fail logic & Annotation
-│  Log to SQLite & stream     │
-└─────────────────────────────┘
-             │
-             ▼
-┌─────────────────────────────┐
-│  React Dashboard            │  ← Live feed & Analytics
-└─────────────────────────────┘
+```
+Camera (browser) → WebSocket → FastAPI backend
+                                  ├── lens_segmentor.py   (YOLOv8n-seg, every 3s)
+                                  ├── defect_detector.py  (best.pt OBB, every frame)
+                                  ├── decision.py         (annotate + Pass/Fail)
+                                  └── SQLite / PostgreSQL (throttled writes)
+React frontend  ← WebSocket ← annotated JPEG + JSON metadata
 ```
 
-## Prerequisites
-- Python 3.11+
-- Node.js 20+
-- Docker & Docker Compose
-- Trained YOLOv8m-OBB weights file (`best.pt`)
-- A connected USB camera (or virtual camera)
+## Quick Start (local)
 
-## Model Placement
-Place your trained YOLOv8m-OBB weights file in the following directory before running:
-`backend/models/best.pt`
-
-## Quick Start (Docker)
-1. Place your model at `backend/models/best.pt`.
-2. Build and start the containers:
-   ```bash
-   cd docker
-   docker-compose up --build
-   ```
-3. Open `http://localhost:3000` in your browser.
-
-## Quick Start (Manual)
-
-### Backend
 ```bash
-cd backend
-python -m venv venv
-# On Windows: venv\Scripts\activate
-# On macOS/Linux: source venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port 8000
+# 1. Place your trained weights
+cp path/to/best.pt backend/models/best.pt
+
+# 2. (Optional) Train the lens segmentation model
+pip install ultralytics roboflow
+export ROBOFLOW_API_KEY=your_key
+python scripts/train_lens_segmentation.py
+# → writes backend/models/lens_seg.pt
+
+# 3. Run with Docker Compose
+docker compose -f docker/docker-compose.yml up --build
+
+# Frontend: http://localhost:3000
+# Backend:  http://localhost:8000
 ```
 
-### Frontend
+## Deploy: Railway (backend) + Vercel (frontend)
+
+### Backend → Railway
+
+1. Push this repo to GitHub
+2. Railway dashboard → New Project → Deploy from GitHub repo
+3. Railway auto-detects `railway.json` and uses `docker/Dockerfile.backend`
+4. Add environment variables in Railway dashboard (see `.env.example`):
+   - `DATABASE_URL` — add Railway PostgreSQL plugin and copy the URL
+   - `MODEL_PATH=models/best.pt`
+   - `LENS_SEG_MODEL_PATH=models/lens_seg.pt` (after training)
+   - `CONFIDENCE_THRESHOLD=0.3`
+   - `SEG_INTERVAL=3.0`
+5. Your backend URL will be: `https://your-project.railway.app`
+
+> **Note:** `best.pt` must be committed to `backend/models/` (or mounted via Railway volume).
+> The `lens_seg.pt` model is created by running the training script — commit it too.
+
+### Frontend → Vercel
+
+1. Vercel dashboard → New Project → Import from GitHub (select `frontend/` as root directory)
+2. Add environment variable:
+   - `VITE_API_URL=https://your-project.railway.app`
+3. Deploy — Vercel auto-detects Vite and uses `vercel.json`
+
+### CORS
+
+The backend currently allows all origins (`allow_origins=["*"]`). For production,
+replace this in `backend/main.py` with your Vercel domain:
+
+```python
+allow_origins=["https://your-app.vercel.app"],
+```
+
+## Lens Segmentation Model Training
+
+Run `scripts/train_lens_segmentation.py` to fine-tune YOLOv8n-seg on real lens images:
+
 ```bash
-cd frontend
-npm install
-npm run dev
+# Get a free API key at roboflow.com
+export ROBOFLOW_API_KEY=your_key
+python scripts/train_lens_segmentation.py --epochs 60 --device 0
+# Output: backend/models/lens_seg.pt
 ```
 
-## Configuration
-| Variable | Default | Description |
+Without `lens_seg.pt`, the system falls back to a GrabCut + ellipse-fitting CV pipeline
+which works well for clean lab setups (lens on flat surface with clear background).
+
+## Pipeline Timing
+
+| Stage | Frequency | Why |
 |---|---|---|
-| `CAMERA_INDEX` | `0` | OpenCV camera index |
-| `CONFIDENCE_THRESHOLD` | `0.5` | Min OBB detection confidence |
-| `MODEL_PATH` | `backend/models/best.pt` | Path to YOLOv8m-OBB weights |
-| `DATABASE_URL` | `sqlite:///./lens_inspections.db` | SQLite DB path |
-| `VITE_API_URL` | `http://localhost:8000` | Frontend → backend URL |
+| Lens segmentation | Every 3s (configurable) | ML model is slow; lens doesn't move fast |
+| Defect detection | Every frame | Fast OBB model on small cached ROI |
+| DB write | Every 5s | Avoid hammering SQLite under load |
+| WS ping | Every 20s | Keep Railway proxy connection alive |
 
-## Dashboard Features
-- **Live Camera Feed**: Real-time WebSocket stream displaying the annotated frame and current Pass/Fail status.
-- **Current Detections**: A side panel listing all defects identified in the current frame with their confidence scores.
-- **Defect Distribution**: A grid showing the total count of each defect type (bubble, crack, dots, scratch) recorded so far.
-- **Yield Trend**: A line chart tracking the rolling Pass Rate % over the last 50 inspections.
-- **Inspection Table**: A paginated history log of all inspections with a "Details" modal showing raw JSON defect data.
-- **Export Panel**: Buttons to generate and download a CSV log or a PDF summary report.
+## Models
 
-## Pipeline Explanation
-1. **Lens Isolation**: The system reads a frame from the camera, converts it to grayscale, and applies a blur. It uses OpenCV's Hough Circle Transform to find the circular shape of the lens and crops out the background, leaving a Region of Interest (ROI).
-2. **Defect Detection**: The YOLOv8m-OBB model processes only the cropped ROI. It looks for oriented bounding boxes that match the patterns of bubbles, cracks, dots, or scratches.
-3. **Decision & Output**: If any defects are found above the confidence threshold, the lens is marked "Fail"; otherwise "Pass". The original frame is annotated with the bounding boxes and text, saved to the database (if a lens is present), and streamed to the UI.
-
-## Known Limitations
-- **Lighting Sensitivity**: Step 1 (classical CV using HoughCircles) is highly sensitive to reflections and shadows. Consistent, diffuse lighting is required for reliable lens isolation.
-- **Defect Sub-classes**: The "dots" class is generally harder to detect accurately than larger scratches or cracks due to its small pixel area.
-
-## Future Improvements
-- **GPU Acceleration**: Update the Dockerfile to support NVIDIA CUDA for faster YOLOv8 inference.
-- **Multi-camera Support**: Scale the backend and frontend to handle multiple camera feeds simultaneously on different assembly lines.
-- **Active Learning Loop**: Add a UI feature to flag false positives/negatives and save those frames to a dataset folder for future model retraining.
+| File | Purpose | Size |
+|---|---|---|
+| `backend/models/best.pt` | OBB defect detection (bubble/crack/dots/scratch) | ~50MB |
+| `backend/models/lens_seg.pt` | Custom lens segmentation (trained by you) | ~6MB |
+| `backend/models/yolov8n-seg.pt` | Generic fallback segmentation (auto-downloaded) | ~6MB |

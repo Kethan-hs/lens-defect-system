@@ -1,0 +1,10 @@
+names:
+  0: lens
+nc: 1
+path: C:\Users\Acer\OneDrive\Desktop\Kethan\lens-defect-system-fixed\data\lens_combined
+train:
+- C:\Users\Acer\OneDrive\Desktop\Kethan\lens-defect-system-fixed\data\lens_combined\local\train\images
+- C:\Users\Acer\OneDrive\Desktop\Kethan\lens-defect-system-fixed\data\lens_combined\synthetic\train\images
+val:
+- C:\Users\Acer\OneDrive\Desktop\Kethan\lens-defect-system-fixed\data\lens_combined\local\valid\images
+- C:\Users\Acer\OneDrive\Desktop\Kethan\lens-defect-system-fixed\data\lens_combined\synthetic\valid\images

@@ -9,9 +9,15 @@ services:
       - ../backend/models:/app/models
       - backend-db:/app/data
     environment:
+      - PORT=8000
       - CONFIDENCE_THRESHOLD=0.3
+      - LENS_SEG_MODEL_PATH=models/lens_seg.pt
       - MODEL_PATH=models/best.pt
-      - DATABASE_URL=sqlite:///./data/lens_inspections.db
+      - SEG_MODEL_PATH=models/yolov8n-seg.pt
+      - SEG_CONFIDENCE=0.25
+      - SEG_INTERVAL=3.0
+      - DB_WRITE_INTERVAL=5.0
+      - DATABASE_URL=sqlite:////app/data/lens_inspections.db
     networks:
       - lens-network
     restart: unless-stopped
