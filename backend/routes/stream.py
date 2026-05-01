@@ -100,40 +100,40 @@ def _run_pipeline(frame_bytes: bytes, state: PipelineState):
         if state.is_lens_found and state.cached_roi is not None:
             detections = detect_defects(state.cached_roi)
 
-    # Stage 3 — annotate + decide
-    annotated, pass_fail, mapped = make_decision_and_annotate(
-        frame,
-        state.is_lens_found,
-        detections,
-        state.cached_bbox,
-        state.cached_mask,
-        state.cached_polygon,
-    )
+        # Stage 3 — annotate + decide
+        annotated, pass_fail, mapped = make_decision_and_annotate(
+            frame,
+            state.is_lens_found,
+            detections,
+            state.cached_bbox,
+            state.cached_mask,
+            state.cached_polygon,
+        )
 
-    # Seg-refresh countdown overlay
-    age  = now - state.last_seg_time
-    till = max(0.0, SEG_INTERVAL - age)
-    cv2.putText(
-        annotated,
-        f"Seg refresh: {till:.1f}s",
-        (10, annotated.shape[0] - 12),
-        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (100, 100, 100), 1,
-    )
+        # Seg-refresh countdown overlay
+        age  = now - state.last_seg_time
+        till = max(0.0, SEG_INTERVAL - age)
+        cv2.putText(
+            annotated,
+            f"Seg refresh: {till:.1f}s",
+            (10, annotated.shape[0] - 12),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (100, 100, 100), 1,
+        )
 
-    _, buf = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        _, buf = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 80])
 
-    # Build metadata — ensure all values are JSON-serialisable
-    metadata = _to_json_safe({
-        "lens_detected": state.is_lens_found,
-        "is_lens_found": state.is_lens_found,
-        "lens_bbox":     state.cached_bbox,
-        "pass_fail":     pass_fail,
-        "detections":    mapped,
-        "defects":       mapped,
-        "seg_age_s":     round(age, 1),
-    })
+        # Build metadata — ensure all values are JSON-serialisable
+        metadata = _to_json_safe({
+            "lens_detected": state.is_lens_found,
+            "is_lens_found": state.is_lens_found,
+            "lens_bbox":     state.cached_bbox,
+            "pass_fail":     pass_fail,
+            "detections":    mapped,
+            "defects":       mapped,
+            "seg_age_s":     round(age, 1),
+        })
 
-    return buf.tobytes(), metadata, pass_fail, mapped
+        return buf.tobytes(), metadata, pass_fail, mapped
     except Exception as e:
         print(f"[Pipeline] Error: {e}")
         import traceback
