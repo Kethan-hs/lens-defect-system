@@ -1,6 +1,14 @@
 import axios from 'axios';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+const API_URL = (() => {
+  const url = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+  if (!url) {
+    console.error('[client] VITE_API_URL is not set! WebSocket will fail.');
+    return 'http://localhost:8000';
+  }
+  return url;
+})();
 
 const apiClient = axios.create({ baseURL: API_URL });
 

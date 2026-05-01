@@ -6,6 +6,7 @@ const LiveFeed = () => {
   const [metadata, setMetadata]           = useState(null);
   const [debugLog, setDebugLog]           = useState(['Initializing...']);
   const [connectionState, setConnectionState] = useState('connecting');
+  const [cameraReady, setCameraReady] = useState(false);
   const [fallbackImage, setFallbackImage] = useState(null);
 
   const socketRef  = useRef(null);
@@ -42,7 +43,10 @@ const LiveFeed = () => {
         addLog('Requesting camera...');
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         addLog('Camera granted!');
-        if (videoRef.current) videoRef.current.srcObject = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => setCameraReady(true);
+        }
       } catch (err) {
         addLog('Camera error — using fallback image');
         console.warn('Webcam unavailable:', err);
@@ -69,13 +73,20 @@ const LiveFeed = () => {
     }
   }, [metadata, frameSrc]);
 
+  useEffect(() => {
+  const interval = setInterval(() => {
+    waitingForResponse.current = false;
+  }, 3000);
+  return () => clearInterval(interval);
+  }, []);
   // ── Frame send loop ─────────────────────────────────────────────────────────
   useEffect(() => {
     const sendFrame = () => {
       if (
         socketRef.current?.readyState === WebSocket.OPEN &&
         canvasRef.current &&
-        !waitingForResponse.current
+        !waitingForResponse.current &&
+        (cameraReady || fallbackImage)
       ) {
         const video  = videoRef.current;
         const canvas = canvasRef.current;
@@ -110,7 +121,7 @@ const LiveFeed = () => {
 
     requestRef.current = setTimeout(() => requestAnimationFrame(sendFrame), 500);
     return () => clearTimeout(requestRef.current);
-  }, [fallbackImage]);
+  }, [fallbackImage, cameraReady]);
 
   // ── Derived state ────────────────────────────────────────────────────────────
   const isPass   = metadata?.pass_fail === 'Pass';
