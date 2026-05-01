@@ -5,16 +5,22 @@ YOLOv8m-OBB model inference on the masked lens ROI to detect 4 defect classes.
 import os
 from ultralytics import YOLO
 
-# Load model globally to avoid reloading on each frame
+# Lazy load model to avoid slow startup
 MODEL_PATH = os.getenv("MODEL_PATH", "models/best.pt")
 CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.3"))
 
-try:
-    model = YOLO(MODEL_PATH)
-    print(f"[DefectDetector] Loaded defect model: {MODEL_PATH}")
-except Exception as e:
-    print(f"[DefectDetector] Warning: Could not load YOLO model at {MODEL_PATH}. Error: {e}")
-    model = None
+_model = None
+
+def _load_model():
+    global _model
+    if _model is None:
+        try:
+            _model = YOLO(MODEL_PATH)
+            print(f"[DefectDetector] Loaded defect model: {MODEL_PATH}")
+        except Exception as e:
+            print(f"[DefectDetector] Warning: Could not load YOLO model at {MODEL_PATH}. Error: {e}")
+            _model = None
+    return _model
 
 
 def detect_defects(roi, confidence_threshold=CONFIDENCE_THRESHOLD) -> list:
@@ -23,6 +29,7 @@ def detect_defects(roi, confidence_threshold=CONFIDENCE_THRESHOLD) -> list:
     Returns a list of detections:
     [{"label": str, "class": str, "confidence": float, "obb_coords": list, "bbox": [x, y, w, h]}]
     """
+    model = _load_model()
     if model is None or roi is None or roi.size == 0:
         return []
 
