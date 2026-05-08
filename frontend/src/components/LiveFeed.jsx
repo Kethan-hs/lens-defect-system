@@ -45,7 +45,18 @@ const LiveFeed = () => {
         addLog('Camera granted!');
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          videoRef.current.onloadedmetadata = () => setCameraReady(true);
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current.play().then(() => {
+              const checkReady = () => {
+                if (videoRef.current && videoRef.current.videoWidth > 0) {
+                  setCameraReady(true);
+                } else {
+                  requestAnimationFrame(checkReady);
+                }
+              };
+              checkReady();
+            });
+          };
         }
       } catch (err) {
         addLog('Camera error — using fallback image');
@@ -108,13 +119,15 @@ const LiveFeed = () => {
         }
 
         if (shouldSend) {
-          canvas.toBlob((blob) => {
-            if (blob && socketRef.current?.readyState === WebSocket.OPEN) {
-              waitingForResponse.current = true;
-              socketRef.current.send(blob);
-            }
-          }, 'image/jpeg', 0.8);
-        }
+                  canvas.toBlob((blob) => {
+                    if (blob && blob.size > 1000 && socketRef.current?.readyState === WebSocket.OPEN) {
+                      waitingForResponse.current = true;
+                      socketRef.current.send(blob);
+                    } else {
+                      waitingForResponse.current = false;
+                    }
+                  }, 'image/jpeg', 0.8);
+                }
       }
       requestRef.current = setTimeout(() => requestAnimationFrame(sendFrame), 33);
     };
