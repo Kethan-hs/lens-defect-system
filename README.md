@@ -96,3 +96,6 @@ which works well for clean lab setups (lens on flat surface with clear backgroun
 | `backend/models/best.pt` | OBB defect detection (bubble/crack/dots/scratch) | ~50MB |
 | `backend/models/lens_seg.pt` | Custom lens segmentation (trained by you) | ~6MB |
 | `backend/models/yolov8n-seg.pt` | Generic fallback segmentation (auto-downloaded) | ~6MB |
+
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/4de23231-d874-49e0-9a5d-e6f9d2dc54d5" />
+
